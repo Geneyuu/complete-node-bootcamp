@@ -105,7 +105,7 @@ app.patch('/api/v1/tours/:id', (req, res) => {
     JSON.stringify(tours, null, 2),
     () => {
       res.status(200).json({
-        status: 'success',
+        status: `Successfully patched the tour ${id}`,
         data: { tour },
       });
     },
