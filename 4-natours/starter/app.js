@@ -73,6 +73,44 @@ app.post('/api/v1/tours', (req, res) => {
   );
 });
 
+app.patch('/api/v1/tours/:id', (req, res) => {
+  const id = Number(req.params.id);
+
+  // hanapin yung tour
+  const tour = tours.find((el) => el.id === id);
+
+  // check kung wala
+  if (!tour) {
+    return res.status(404).json({
+      status: 'fail',
+      message: `Tour with ID ${id} not found`,
+    });
+  }
+
+  // update (palitan yung fields na sinend mo)
+  Object.assign(tour, req.body);
+
+  // create updated object using spread
+  // const updatedTour = {
+  //   ...tour,
+  //   ...req.body,
+  // };
+  // // replace sa array
+  // const index = tours.findIndex((el) => el.id === id);
+  // tours[index] = updatedTour;
+
+  // save sa file
+  fs.writeFile(
+    `${__dirname}/dev-data/data/tours-simple.json`,
+    JSON.stringify(tours, null, 2),
+    () => {
+      res.status(200).json({
+        status: 'success',
+        data: { tour },
+      });
+    },
+  );
+});
 //  404 handler (always last)
 app.use((req, res) => {
   res.status(404).json({
