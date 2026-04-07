@@ -11,19 +11,30 @@ const tours = JSON.parse(
   fs.readFileSync(`${__dirname}/dev-data/data/tours-simple.json`),
 );
 
-//  GET all tours
-app.get('/api/v1/tours', (req, res) => {
+// ============ HELPER FUNCTIONS ============
+const saveToursToFile = (callback) => {
+  fs.writeFile(
+    `${__dirname}/dev-data/data/tours-simple.json`,
+    JSON.stringify(tours, null, 2),
+    callback,
+  );
+};
+
+// ============ ROUTE HANDLERS (CALLBACK FUNCTIONS) ============
+
+// GET all tours
+const getAllTours = (req, res) => {
   res.status(200).json({
     status: 'success',
     results: tours.length,
     data: { tours },
   });
-});
+};
 
-app.get('/api/v1/tours/:id', (req, res) => {
-  const id = Number(req.params.id); // convert string to number
+// GET single tour
+const getTour = (req, res) => {
+  const id = Number(req.params.id);
 
-  // hanapin yung tour na may same id
   const tour = tours.find((el) => el.id === id);
 
   if (!tour) {
@@ -37,13 +48,10 @@ app.get('/api/v1/tours/:id', (req, res) => {
     status: 'success',
     data: { tour },
   });
-});
+};
 
 // POST new tour
-app.post('/api/v1/tours', (req, res) => {
-  console.log('BODY:', req.body);
-  console.log('HEADERS:', req.headers);
-
+const createTour = (req, res) => {
   // Create new ID
   const newId = tours.length ? tours[tours.length - 1].id + 1 : 1;
 
@@ -54,32 +62,30 @@ app.post('/api/v1/tours', (req, res) => {
   tours.push(newTour);
 
   // Write updated tours to JSON file
-  fs.writeFile(
-    `${__dirname}/dev-data/data/tours-simple.json`,
-    JSON.stringify(tours, null, 2), //  convert array to JSON string
-    (err) => {
-      if (err) {
-        return res
-          .status(500)
-          .json({ status: 'error', message: 'Could not save tour' });
-      }
-
-      // Send response AFTER file is written
-      res.status(201).json({
-        status: 'success',
-        data: { tour: newTour },
+  saveToursToFile((err) => {
+    if (err) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Could not save tour',
       });
-    },
-  );
-});
+    }
 
-app.patch('/api/v1/tours/:id', (req, res) => {
+    // Send response AFTER file is written
+    res.status(201).json({
+      status: 'success',
+      data: { tour: newTour },
+    });
+  });
+};
+
+// PATCH update tour
+const updateTour = (req, res) => {
   const id = Number(req.params.id);
 
-  // hanapin yung tour
+  // Hanapin yung tour
   const tour = tours.find((el) => el.id === id);
 
-  // check kung wala
+  // Check kung wala
   if (!tour) {
     return res.status(404).json({
       status: 'fail',
@@ -87,40 +93,84 @@ app.patch('/api/v1/tours/:id', (req, res) => {
     });
   }
 
-  // update (palitan yung fields na sinend mo)
+  // Update (palitan yung fields na sinend mo)
   Object.assign(tour, req.body);
 
-  // create updated object using spread
-  // const updatedTour = {
-  //   ...tour,
-  //   ...req.body,
-  // };
-  // // replace sa array
-  // const index = tours.findIndex((el) => el.id === id);
-  // tours[index] = updatedTour;
+  // Save sa file
+  saveToursToFile(() => {
+    res.status(200).json({
+      status: 'success',
+      message: `Successfully patched the tour ${id}`,
+      data: { tour },
+    });
+  });
+};
 
-  // save sa file
-  fs.writeFile(
-    `${__dirname}/dev-data/data/tours-simple.json`,
-    JSON.stringify(tours, null, 2),
-    () => {
-      res.status(200).json({
-        status: `Successfully patched the tour ${id}`,
-        data: { tour },
+// DELETE tour - STANDARD APPROACH
+const deleteTour = (req, res) => {
+  const id = Number(req.params.id);
+
+  // Find if tour exists
+  const tour = tours.find((el) => el.id === id);
+
+  if (!tour) {
+    return res.status(404).json({
+      status: 'fail',
+      message: `No tour found with ID ${id}`,
+    });
+  }
+
+  // Remove the tour
+  const index = tours.findIndex((el) => el.id === id);
+  tours.splice(index, 1);
+
+  // Save to file
+  saveToursToFile((err) => {
+    if (err) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Database save failed',
       });
-    },
-  );
-});
-//  404 handler (always last)
-app.use((req, res) => {
+    }
+
+    // STANDARD APPROACH: 200 with response body
+    res.status(200).json({
+      status: 'success',
+      message: `Tour with ID ${id} deleted successfully`,
+      data: {
+        deletedTour: {
+          id: tour.id,
+          name: tour.name,
+          deletedAt: new Date().toISOString(),
+        },
+      },
+    });
+  });
+};
+
+// 404 handler
+const handleNotFound = (req, res) => {
   res.status(404).json({
     status: 'fail',
     message: `Route ${req.originalUrl} not found`,
   });
-});
+};
 
-// Start server
+// ============ ROUTES USING app.route() ============
+
+app.route('/api/v1/tours').get(getAllTours).post(createTour);
+
+app
+  .route('/api/v1/tours/:id')
+  .get(getTour)
+  .patch(updateTour)
+  .delete(deleteTour);
+
+// 404 handler (always last)
+app.use(handleNotFound);
+
+// ============ START SERVER ============
 const port = 3000;
 app.listen(port, () => {
-  console.log(`App running on ${port}...`);
+  console.log(` App running on port ${port}...`);
 });
