@@ -1,152 +1,23 @@
-const fs = require('fs');
 const express = require('express');
+const morgan = require('morgan');
 
+const tourRouter = require('./routes/tourRoutes');
+const userRouter = require('./routes/userRoutes');
 const app = express();
 
-// Middleware to parse JSON
+// 1) MIDDLEWARES
+app.use(morgan('dev'));
 app.use(express.json());
 
-// Load tours from JSON file
-const tours = JSON.parse(
-  fs.readFileSync(`${__dirname}/dev-data/data/tours-simple.json`),
-);
+app.use((req, res, next) => {
+  console.log('Hello from the middleware...');
+  next();
+});
 
-// ============ HELPER FUNCTIONS ============
-const saveToursToFile = (callback) => {
-  fs.writeFile(
-    `${__dirname}/dev-data/data/tours-simple.json`,
-    JSON.stringify(tours, null, 2),
-    callback,
-  );
-};
-
-// ============ ROUTE HANDLERS (CALLBACK FUNCTIONS) ============
-
-// GET all tours
-const getAllTours = (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    results: tours.length,
-    data: { tours },
-  });
-};
-
-// GET single tour
-const getTour = (req, res) => {
-  const id = Number(req.params.id);
-
-  const tour = tours.find((el) => el.id === id);
-
-  if (!tour) {
-    return res.status(404).json({
-      status: 'fail',
-      message: 'Tour not found',
-    });
-  }
-
-  res.status(200).json({
-    status: 'success',
-    data: { tour },
-  });
-};
-
-// POST new tour
-const createTour = (req, res) => {
-  // Create new ID
-  const newId = tours.length ? tours[tours.length - 1].id + 1 : 1;
-
-  // Merge ID with request body
-  const newTour = { id: newId, ...req.body };
-
-  // Add to tours array
-  tours.push(newTour);
-
-  // Write updated tours to JSON file
-  saveToursToFile((err) => {
-    if (err) {
-      return res.status(500).json({
-        status: 'error',
-        message: 'Could not save tour',
-      });
-    }
-
-    // Send response AFTER file is written
-    res.status(201).json({
-      status: 'success',
-      data: { tour: newTour },
-    });
-  });
-};
-
-// PATCH update tour
-const updateTour = (req, res) => {
-  const id = Number(req.params.id);
-
-  // Hanapin yung tour
-  const tour = tours.find((el) => el.id === id);
-
-  // Check kung wala
-  if (!tour) {
-    return res.status(404).json({
-      status: 'fail',
-      message: `Tour with ID ${id} not found`,
-    });
-  }
-
-  // Update (palitan yung fields na sinend mo)
-  Object.assign(tour, req.body);
-
-  // Save sa file
-  saveToursToFile(() => {
-    res.status(200).json({
-      status: 'success',
-      message: `Successfully patched the tour ${id}`,
-      data: { tour },
-    });
-  });
-};
-
-// DELETE tour - STANDARD APPROACH
-const deleteTour = (req, res) => {
-  const id = Number(req.params.id);
-
-  // Find if tour exists
-  const tour = tours.find((el) => el.id === id);
-
-  if (!tour) {
-    return res.status(404).json({
-      status: 'fail',
-      message: `No tour found with ID ${id}`,
-    });
-  }
-
-  // Remove the tour
-  const index = tours.findIndex((el) => el.id === id);
-  tours.splice(index, 1);
-
-  // Save to file
-  saveToursToFile((err) => {
-    if (err) {
-      return res.status(500).json({
-        status: 'error',
-        message: 'Database save failed',
-      });
-    }
-
-    // STANDARD APPROACH: 200 with response body
-    res.status(200).json({
-      status: 'success',
-      message: `Tour with ID ${id} deleted successfully`,
-      data: {
-        deletedTour: {
-          id: tour.id,
-          name: tour.name,
-          deletedAt: new Date().toISOString(),
-        },
-      },
-    });
-  });
-};
+app.use((req, res, next) => {
+  req.requestTime = new Date().toISOString();
+  next();
+});
 
 // 404 handler
 const handleNotFound = (req, res) => {
@@ -156,21 +27,13 @@ const handleNotFound = (req, res) => {
   });
 };
 
-// ============ ROUTES USING app.route() ============
-
-app.route('/api/v1/tours').get(getAllTours).post(createTour);
-
-app
-  .route('/api/v1/tours/:id')
-  .get(getTour)
-  .patch(updateTour)
-  .delete(deleteTour);
-
-// 404 handler (always last)
+// ROUTES
+app.use('/api/v1/tours', tourRouter);
+app.use('/api/v1/users', userRouter);
 app.use(handleNotFound);
 
-// ============ START SERVER ============
+// START SERVER
 const port = 3000;
 app.listen(port, () => {
-  console.log(` App running on port ${port}...`);
+  console.log(`App running on port ${port}...`);
 });
